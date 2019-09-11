@@ -30,6 +30,7 @@ classdef Orbit
     
     methods
         function obj = Orbit(body, e, a, inc, lon_an, w, M0, v0)
+        % 
             obj.body = body;
             obj.e = e;
             obj.a = a;
@@ -49,6 +50,7 @@ classdef Orbit
         end
         
         function val = p(obj)
+        % The parameter / semi-latus rectum [km]
             if obj.e < 1
                 val = obj.a * (1 - obj.e^2);
             else
@@ -58,22 +60,29 @@ classdef Orbit
         end
         
         function [r, v] = getrv(obj, t)
-            % solve for v (nu)
-            n = sqrt(getmu(obj) / obj.a^3);
+            n = obj.n();
+            E0 = obj.E0();
+            a = obj.a;
+            e = obj.e;
+            c = E0 + e * sin(E0);
 
             E = 0;
             dE = 1;
             while dE > 1e-9
-                Ep = n * (t - obj.M0) + obj.e * sin(E);
+                Ep = n * (t - obj.M0) + e * sin(E) + c;
                 dE = abs(E - Ep);
                 E = Ep;
             end
+
+            % sove for v (nu)
+            v = arccos((e - cos(E)) / (e * cos(E) - 1))
             
             % solve for r
-            r = obj.a * (1 - obj.e^2) / (1 + obj.e * cos(v));
+            r = a * (1 - e * cos(E));
         end
 
         function val = E0(obj)
+        % Initial eccentric anomaly [degrees]
             val = acos((obj.e + cos(deg2rad(obj.v0))) / ...
                 (1 + obj.e * cos(deg2rad(obj.v0))));
             val = rad2deg(val);
@@ -81,6 +90,7 @@ classdef Orbit
         
         
         function x = toGeocentricFrame(obj)
+        % 
             x = [];
         end
 
@@ -98,6 +108,7 @@ classdef Orbit
         end
 
         function plot(obj)
+        % Plot the orbit
             v = linspace(0, 2 * pi, 1000);
             b = obj.b();
             p = obj.p();
@@ -118,11 +129,13 @@ classdef Orbit
                 z(i) = temp(3);
             end
 
-            % plot(x, y)
-            plot3(x, y, z)
+            plot(x, y)
+            % plot3(x, y, z)
         end
 
         function val = R(obj)
+        % Rotation matrix from geocentric frame to perifocal frame
+
             lan = deg2rad(obj.lon_an);
             w = deg2rad(obj.w);
             inc = deg2rad(obj.i);
