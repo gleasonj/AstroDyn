@@ -126,21 +126,26 @@ classdef Orbit
         end
 
         function r = Radius(obj, t, varargin)
-            [r, ~] = obj.radius_trueanomaly(obj, t, varagin{:})
+            [r, ~] = obj.radiusAndTrueAnomaly(t, varargin{:});
         end
 
-        function v = TrueAnomaly(obj, t, varagin)
-            [~, v] = obj.radius_trueanomaly(obj, t, varagin{:})
+        function v = TrueAnomaly(obj, t, varargin)
+            [~, v] = obj.radiusAndTrueAnomaly(t, varargin{:});
         end
 
-        function [r, v] = radiusAndTrueAnomaly(obj, t, varagin)
+        function [r, v] = radiusAndTrueAnomaly(obj, t, varargin)
             a = obj.SemiMajorAxis;
             e = obj.Eccentricity;
             
-            E = obj.EccentricAnomaly(t, varagin{:});
+            E = obj.EccentricAnomaly(t, varargin{:});
 
             % sove for v (nu)
-            v = arccos((e - cos(E)) / (e * cos(E) - 1));
+            v = acos((e - cos(E)) / (e * cos(E) - 1));
+
+            if E > pi
+                v = v + 2 * (pi - v);
+            end
+
             r = a * (1 - e * cos(E));
         end
 
@@ -164,14 +169,16 @@ classdef Orbit
             E = 0;
             dE = 1;
             while dE > p.Results.Accuracy
-                Ep = n * (t - obj.M0) + e * sin(E) + c;
+                Ep = n * (t - M0) + e * sin(E) + c;
                 dE = abs(E - Ep);
                 E = Ep;
             end
+
+            E = mod(E, 2*pi);
         end
 
         function val = get.EccentricAnomalyAtEpoch(obj)
-            val = self.E0_();
+            val = obj.E0_();
         end
         
         
@@ -228,6 +235,19 @@ classdef Orbit
                 cos(inc)
             ];
         end
+
+        function val = get.lan_(obj)
+        % Shorthand for getting the longitude of the Ascending Node
+            val = obj.LongitudeOfAscendingNode_;
+        end
+
+        function obj = set.lan_(obj, val)
+            obj.LongitudeOfAscendingNode_ = val;
+        end
+
+        function val = get.mu_(obj)
+            val = obj.CelestialBody.GravitationalParameter;
+        end
     end
 
     methods (Access = private)
@@ -240,21 +260,8 @@ classdef Orbit
             val = rad2deg(val);
         end
 
-        function val = get.lan_(obj)
-        % Shorthand for getting the longitude of the Ascending Node
-            val = obj.LongitudeOfAscendingNode;
-        end
-
-        function set.lan_(obj, val)
-            obj.LongitudeOfAscendingNode_ = val;
-        end
-
         function val = c_(obj)
             val = sqrt(obj.e^2 * obj.a^2);
-        end
-
-        function val = get.mu_(obj)
-            val = obj.CelestialBody.GravitationalParameter;
         end
 
         function val = b_(obj)

@@ -56,6 +56,7 @@ classdef Earth < astrodyn.bodies.CelestialBody
                 obj.SemiMajorAxis_, obj.Inclination_, ...
                 obj.LongitudeAscendingNode_, obj.ArgumentOfPeriapsis_, ...
                 astrodyn.constants.J2000(), 0)
+        end
     end
 
     methods (Access = private)
