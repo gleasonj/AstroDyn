@@ -181,10 +181,32 @@ classdef Orbit
             val = obj.E0_();
         end
         
-        
-        function x = toGeocentricFrame(obj)
-        % 
-            x = [];
+        function x = BciState(obj, t, varargin)
+            % Get the Body-Cenetered Inertial state
+            %
+            % The Body-Cenetered Inertial state is the concatenated 
+            % position and velocity relative to the origin, which is a
+            % point-mass representation of the celestial body which
+            % the satellite is orbiting around.
+            %
+            
+            p = obj.SemiLatusRectum;
+            mu = obj.CelestialBody.GravitationalParameter;
+            e = obj.Eccentricity;
+            
+            perifocal_x = zeros(6, 1);
+            v = obj.TrueAnomaly(t, varargin{:});
+            r = p / (1 + e * cos(v));
+            
+            
+            perifocal_x(1:3) = r * cos(v) * [1, 0, 0]' + ...
+                r * sin(v) * [0, 1, 0]';
+            perifocal_x(4:6) = sqrt(mu / p) * (-sin(v) * [1, 0, 0]' + ...
+                (e + cos(v)) * [0, 1, 0]');
+            
+            x = zeros(6, 1);
+            x(1:3) = obj.R() * perifocal_x(1:3);
+            x(4:6) = obj.R() * perifocal_x(4:6);
         end
 
         function varargout = plot(obj, varargin)
