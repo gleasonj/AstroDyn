@@ -38,7 +38,7 @@ classdef Orbit
         % Eccentricity
         Eccentricity_
 
-        % Semi-major axis [km]
+        % Semi-major axis [m]
         SemiMajorAxis_
 
         % Inclination [degrees]
@@ -112,11 +112,11 @@ classdef Orbit
             mu = obj.mu_;
             a  = obj.SemiMajorAxis;
 
-            val = sqrt(mu / (a^3 * 1000^3));
+            val = sqrt(mu / a^3);
         end
 
         function val = get.SemiLatusRectum(obj)
-        % The parameter / semi-latus rectum [km]
+        % The parameter / semi-latus rectum [m]
             if obj.Eccentricity < 1
                 val = obj.SemiMajorAxis * (1 - obj.Eccentricity^2);
             else
@@ -187,9 +187,19 @@ classdef Orbit
             x = [];
         end
 
-        function plot(obj)
+        function varargout = plot(obj, varargin)
         % Plot the orbit
-            v = linspace(0, 2 * pi, 1000);
+            inp = inputParser();
+            inp.KeepUnmatched = true;
+            addParameter(inp, 'Axis', [], ...
+                @(x) isa(x, 'matlab.graphics.axis.Axes'));
+            addParameter(inp, 'Plot3d', false, @(x) isa(x, 'logical'));
+            addParameter(inp, 'NumberOfPoints', 1000, ...
+                @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer'}));
+            
+            parse(inp, varargin{:});
+
+            v = linspace(0, 2 * pi, inp.Results.NumberOfPoints);
             b = obj.b_();
             p = obj.SemiLatusRectum;
 
@@ -199,7 +209,7 @@ classdef Orbit
             y = zeros(size(v));
             z = zeros(size(v));
             for i = 1:length(v)
-                r = p / (1 + obj.e * cos(v(i)));
+                r = p / (1 + obj.Eccentricity * cos(v(i)));
 
 
                 temp = r * cos(v(i)) * [1, 0, 0]' + r * sin(v(i)) * [0, 1, 0]';
@@ -209,16 +219,35 @@ classdef Orbit
                 z(i) = temp(3);
             end
 
-            plot(x, y)
-            % plot3(x, y, z)
+            if inp.Results.Plot3d
+                hl = plot3(x, y, z);
+            else
+                hl = plot(x, y);
+            end
+            
+            if nargout == 1
+                varargout = {hl};
+            elseif nargout > 1
+                error('Too many output arguments.');
+            end
+        end
+
+        function varargout = plot3(obj, varargin)
+            hl = plot(obj, 'Plot3d', true, varargin{:});
+
+            if nargout == 1
+                varargout = {hl};
+            elseif nargout > 1
+                error('Too many output arguments.');
+            end
         end
 
         function val = R(obj)
         % Rotation matrix from geocentric frame to perifocal frame
 
-            lan = deg2rad(obj.lon_an);
-            w = deg2rad(obj.w);
-            inc = deg2rad(obj.i);
+            lan = deg2rad(obj.lan_);
+            w = deg2rad(obj.ArgumentOfPeriapsis);
+            inc = deg2rad(obj.Inclination);
 
             val = [
                 cos(lan) * cos(w) - sin(lan) * sin(w) * cos(inc), ...
@@ -265,12 +294,48 @@ classdef Orbit
         end
 
         function val = b_(obj)
-            if obj.e <=1
-                val = sqrt(obj.a^2 * (1 - obj.e^2));
+            if obj.Eccentricity <=1
+                val = sqrt(obj.SemiMajorAxis^2 * (1 - obj.Eccentricity^2));
             else
                 error(['Ellipse parameter b does not exist for ', ...
                     'eccentricities > 1']);
             end
+        end
+    end
+
+    methods (Static)
+        function orbit = fromCelestialCeneterdInertialState(body, x)
+            % Get orbit from the Celestial-Body-Cenetered Inertial state vector
+            % 
+            % State vector must be in m and m/sec
+            if size(x, 1) == 1
+                x = x';
+            end
+
+            r = x(1:3);
+            v = x(4:6);
+
+            mu = body.GravitationalParameter / 1000^3;
+
+            h = cross(r, v);
+            n = cross([0, 0, 1]', h);
+
+            p = norm(h)^2 / mu;
+            e = (1 / mu) * ((norm(v)^2 - mu/norm(r)^2)*r - (r'*v)*v);
+            a = p / (1 - norm(e)^2);
+
+            i = acos(h(3) / norm(h));
+            lan = acos(n(1) / norm(n));
+            w = acos(n' * e / (norm(n) * norm(e)));
+            v0 = acos(e' * r / (norm(e) * norm(r)));
+
+            orbit = astrodyn.Orbit(body, norm(e), a, i, lan, w, 0, v0);
+        end
+
+        function orbit = fromEciState(x)
+            % Get orbit from the Earth-Cenetered Inertial state vector
+            body = astrodyn.bodies.Earth();
+            orbit = astrodyn.Orbit.fromCelestialCeneterdInertialState(body, x);
         end
     end
 end
